@@ -1411,7 +1411,7 @@ mod tests {
             0x0000,
             TpmFunction::ManageLocality as u64,
             0xFF, // Invalid Function
-            0x00,
+            0x02, // Locality 2
         );
         let resp = service.ffa_msg_send_direct_req2(msg).unwrap();
         assert_eq!(resp_status(&resp), TpmStatus::InvArg as u64);
