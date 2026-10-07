@@ -152,7 +152,7 @@ pub const TPM2_FFA_MANAGE_LOCALITY_CLOSE: u16 = 0x1;
 // TPM Service Defines
 // ---------------------------------------------------------------------------
 pub const TPM_MAJOR_VER: u64 = 0x1;
-pub const TPM_MINOR_VER: u64 = 0x0;
+pub const TPM_MINOR_VER: u64 = 0x1;
 pub const NUM_LOCALITIES: u8 = 5;
 const NO_ACTIVE_LOCALITY: u8 = NUM_LOCALITIES; // Invalid locality
 
@@ -202,7 +202,7 @@ struct TpmRequest {
 
 struct TpmResponse {
     tpm_status: u64,        // Arg0
-    tpm_payload: [u64; 13], // Arg1-Arg14 (x4-x17)
+    tpm_payload: [u64; 13], // Arg1-Arg13 (x4-x17)
 }
 
 impl From<MsgSendDirectReq2> for TpmRequest {
@@ -604,7 +604,8 @@ impl<S: TpmSstOps> TpmService<S> {
     }
 
     fn get_crb_info(&mut self, _request: &TpmRequest, response: &mut TpmResponse) -> TpmStatus {
-        response.tpm_payload[0] = self.tpm_internal_crb_address;
+        response.tpm_payload[0] =
+            self.tpm_internal_crb_address + mem::offset_of!(PtpCrbRegisters, crb_control_request) as u64;
         response.tpm_payload[1] = TpmCrbRegionSize::Size4k as u64;
         TpmStatus::OkResultsReturned
     }
@@ -614,8 +615,8 @@ impl<S: TpmSstOps> TpmService<S> {
         let locality = request.locality as u8;
         let mut return_val: TpmStatus = TpmStatus::Ok;
 
-        // Only locality 2 and 3 is valid via spec v1.1
-        if locality != 2 && locality != 3 {
+        // Only localities 2 and 3 are valid via spec v1.1
+        if request.locality != 2 && request.locality != 3 {
             error!("Invalid Locality");
             return TpmStatus::InvArg;
         }
@@ -1350,7 +1351,10 @@ mod tests {
         let resp = service.ffa_msg_send_direct_req2(msg).unwrap();
         assert_eq!(resp_status(&resp), TpmStatus::OkResultsReturned as u64);
         let payload = resp.payload();
-        assert_eq!(payload.register_at(1), crb_address);
+        assert_eq!(
+            payload.register_at(1),
+            crb_address + mem::offset_of!(PtpCrbRegisters, crb_control_request) as u64
+        );
         assert_eq!(payload.register_at(2), TpmCrbRegionSize::Size4k as u64);
     }
 
